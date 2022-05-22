@@ -1,10 +1,8 @@
 const fs = require('fs');
-const http = require('http');
-
+const fastify = require('fastify');
+const app = fastify();
 const port = +process.argv[2] || 3000;
-const offset = port % 2;
 
-const OK = 200;
 const READY = Buffer.from('{"ready":true}', 'ascii');
 const ALL_CARDS = Buffer.from('{"id": "ALL CARDS"}', 'ascii');
 
@@ -13,25 +11,29 @@ const parsedCards = JSON.parse(cardsData);
 const cards = [...parsedCards.map(c => Buffer.from(JSON.stringify(c)), "ascii")];  // JSON strings in array
 const done = {};
 
-const listener = async function(req, res) {
-    res.writeHead(OK);
-    if (req.url !== '/ready') {
-        const key = req.url.substring(13); // '/card_app?id='
-        let index = done[key];
-        if (index === undefined) {
-            index = offset;
-        } else if (index >= cards.length) {
-            res.end(ALL_CARDS);
+const client = require('redis').createClient();
+client.on('error', (err) => console.log('Redis Client Error', err));
+client.on('ready', () => {
+    app.listen(port, '0.0.0.0', () => {
+        console.log(`Example app listening at http://0.0.0.0:${port}`);
+    });
+});
+
+app.get('/card_add', async (req, res) => {
+    const key = req.query.id;
+    if (!done[key]) {
+        const index = await client.incr(key) - 1;
+        if (index < cards.length) {
+            res.send(cards[index]);
             return;
         }
-        done[key] = index + 2;
-        res.end(cards[index]);
-        return;
+        done[key] = 1;
     }
-    res.end(READY);
-}
-
-const server = http.createServer(listener);
-server.listen(port, '0.0.0.0', () => {
-    console.log(`Example app listening at http://0.0.0.0:${port}`);
+    res.send(ALL_CARDS);
 });
+
+app.get('/ready', async (req, res) => {
+    res.send(READY);
+});
+
+client.connect();

@@ -12,5 +12,8 @@
   },
   "author": "Assaf A. Dayan",
   "license": "ISC",
-  "dependencies": {}
+  "dependencies": {
+    "fastify": "^3.29.0",
+    "redis": "^4.1.0"
+  }
 }
